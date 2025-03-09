@@ -35,22 +35,38 @@ func main() {
 	var totalFiles, totalDirs int
 	var wg sync.WaitGroup
 	var mu sync.Mutex
+	var currentConcurrent, maxConcurrent int
 
 	// Start traversing the directory tree concurrently.
 	wg.Add(1)
-	go walkDir(root, &totalFiles, &totalDirs, &wg, &mu)
+	go walkDir(root, &totalFiles, &totalDirs, &wg, &mu, &currentConcurrent, &maxConcurrent)
 	wg.Wait()
 
-	// Print total counts.
+	// Print total counts and the maximum concurrent calls.
 	fmt.Printf("\nFrom : %s\n", root)
 	fmt.Printf("Files: %d\n", totalFiles)
 	fmt.Printf("Dirs : %d\n", totalDirs)
+	fmt.Printf("Max Concurrent walkDir calls: %d\n", maxConcurrent)
 }
 
 // walkDir recursively processes the given directory concurrently,
-// counting files and directories.
-func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu *sync.Mutex) {
-	defer wg.Done()
+// counting files and directories and tracking concurrent calls.
+func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu *sync.Mutex, currentConcurrent *int, maxConcurrent *int) {
+	// Update concurrent call counters.
+	mu.Lock()
+	*currentConcurrent++
+	if *currentConcurrent > *maxConcurrent {
+		*maxConcurrent = *currentConcurrent
+	}
+	mu.Unlock()
+
+	// Decrement current concurrency and mark this goroutine as done when function returns.
+	defer func() {
+		mu.Lock()
+		*currentConcurrent--
+		mu.Unlock()
+		wg.Done()
+	}()
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -63,15 +79,13 @@ func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu
 	*totalDirs++
 	mu.Unlock()
 
-	// Iterate over each entry.
+	// Process each entry.
 	for _, entry := range entries {
 		fullPath := filepath.Join(dir, entry.Name())
 		if entry.IsDir() {
-			// Launch a new goroutine for each subdirectory.
 			wg.Add(1)
-			go walkDir(fullPath, totalFiles, totalDirs, wg, mu)
+			go walkDir(fullPath, totalFiles, totalDirs, wg, mu, currentConcurrent, maxConcurrent)
 		} else {
-			// Safely increment file count.
 			mu.Lock()
 			*totalFiles++
 			mu.Unlock()
