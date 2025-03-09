@@ -3,7 +3,17 @@ Go count
 
 
 This is significantly faster than its equivalent in C lang thanks to goroutine.   
-(benched on 2.402.919 files and 412.806 dirs)
+
+Notes 
+> benched on 9.445.438 files and 1.400.174 directories)  
+> quota of 100 goroutines used  
+> without quota used max concurrent walkDir calls: **69403**
+
+
+Conclusion
+> applying a quota of 100 highly limits resource usage without impacting perf
+
+
 
 ```
 
@@ -13,6 +23,7 @@ time gocount-nolimit ~/www
 real    0m3,079s
 user    0m27,006s
 sys     0m9,052s
+Note: it used Max Concurrent walkDir calls: 69403
 
 
 async count in go with a limit of 100 goroutines:
@@ -23,7 +34,7 @@ sys     0m10,612s
 
 sync count in C:
 time countfiles ~/www
-/home/nadir/www contains 9.445.438 files and 1.400.174 directories
+~/www contains 9.445.438 files and 1.400.174 directories
 
 ```
 
