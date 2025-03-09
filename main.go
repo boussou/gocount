@@ -14,6 +14,9 @@ import (
 const maxConcurrent = 100
 
 func main() {
+    // Command-line flags for search string.
+    var search = flag.String("search", "", "Search string to match in file names")
+    
 	flag.Parse()
 
 	// Use the first positional argument as the root directory; default to "." if not provided.
@@ -44,7 +47,7 @@ func main() {
 
 	// Start traversing the directory tree concurrently.
 	wg.Add(1)
-	go walkDir(root, &totalFiles, &totalDirs, &wg, &mu, sem)
+	go walkDir(root, &totalFiles, &totalDirs, &wg, &mu, sem, *search)
 	wg.Wait()
 
 	// Print total counts.
@@ -56,7 +59,7 @@ func main() {
 // walkDir recursively processes the given directory concurrently,
 // counting files and directories. It uses a semaphore (sem) to limit
 // the number of concurrent invocations.
-func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu *sync.Mutex, sem chan struct{}) {
+func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu *sync.Mutex, sem chan struct{},search string) {
 	// Acquire a slot in the semaphore.
 	sem <- struct{}{}
 	// Release the slot when done.
@@ -70,9 +73,11 @@ func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu
 	}
 
 	// Increment directory count safely.
+	if strings.Contains(dir, search) {
 	mu.Lock()
 	*totalDirs++
 	mu.Unlock()
+	}
 
 	// Process each entry.
 	for _, entry := range entries {
@@ -80,12 +85,14 @@ func walkDir(dir string, totalFiles *int, totalDirs *int, wg *sync.WaitGroup, mu
 		if entry.IsDir() {
 			// Process subdirectory in a new goroutine.
 			wg.Add(1)
-			go walkDir(fullPath, totalFiles, totalDirs, wg, mu, sem)
+			go walkDir(fullPath, totalFiles, totalDirs, wg, mu, sem, search)
 		} else {
 			// Safely increment file count.
+			if strings.Contains(entry.Name(), search) {
 			mu.Lock()
 			*totalFiles++
 			mu.Unlock()
+			}
 		}
 	}
 }
