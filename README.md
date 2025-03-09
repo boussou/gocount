@@ -1,0 +1,2 @@
+# gocount
+Go count
